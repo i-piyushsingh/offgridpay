@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OffGrid Pay</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%230b5d45'/%3E%3Cpath d='M34.5 14A14 14 0 1 0 38 24' stroke='%23ff9a3c' stroke-width='2.8' stroke-linecap='round' fill='none'/%3E%3Cpath d='M17.5 17.5h13M17.5 22h13M20 17.5c6.5 0 6.5 8.5 0 8.5h-2.5l9 8' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='37' cy='12' r='3.4' fill='%239bffd6'/%3E%3C/svg%3E">
+    <style>
+        :root {
+            --bg: #000302;
+            --card: rgba(255, 255, 255, .03);
+            --card-solid: #0a1f18;
+            --line: rgba(255, 255, 255, .09);
+            --text: #e9f5ef;
+            --muted: #86a196;
+            --g1: #17a673;
+            --g2: #0b5d45;
+            --o1: #5ff0b2;
+            --o2: #1fb37f;
+            --ob1: #ff9a3c;
+            --ob2: #ff5a12;
+            --ok: #3fe0a0;
+            --warn: #ffb020;
+            --red: #ff6b6b;
+        }
+        * { box-sizing: border-box; }
+        html { background: var(--bg); }
+        body {
+            margin: 0; min-height: 100vh; color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+            background:
+                    radial-gradient(900px 520px at 8% -8%, rgba(23, 166, 115, .13), transparent 60%),
+                    radial-gradient(700px 420px at 100% 4%, rgba(23, 166, 115, .05), transparent 60%),
+                    linear-gradient(180deg, #020605, #000302 60%);
+            background-attachment: fixed;
+        }
+        .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 20px 48px; }
+
+        /* icons */
+        .ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+        .ic.sm { width: 14px; height: 14px; }
+
+        /* header */
+        header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0 22px; flex-wrap: wrap; }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand h1 { margin: 0; font-size: 26px; letter-spacing: .2px; font-weight: 700; }
+        .brand h1 span { background: linear-gradient(90deg, var(--o1), var(--o2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; max-width: 560px; }
+        .live { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ok); }
+        .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(63, 224, 160, .6); animation: ping 1.8s infinite; }
+        .live.off { color: var(--red); }
+        .live.off i { background: var(--red); animation: none; }
+        @keyframes ping { 70% { box-shadow: 0 0 0 8px rgba(63, 224, 160, 0); } 100% { box-shadow: 0 0 0 0 rgba(63, 224, 160, 0); } }
+
+        /* layout */
+        .grid { display: grid; gap: 18px; margin-bottom: 18px; }
+        .g-top { grid-template-columns: 5fr 7fr; }
+        .g-mid { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 960px) { .g-top, .g-mid { grid-template-columns: 1fr; } }
+        .card {
+            background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        .card h2 { margin: 0 0 16px; font-size: 13px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .card h2 em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; }
+
+        /* avatars */
+        .av { display: inline-grid; place-items: center; border-radius: 50%; color: #fff; font-weight: 700; flex: none; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .22); }
+
+        /* wallet card */
+        .wallet {
+            border-radius: 18px; padding: 18px 20px; margin-bottom: 18px; position: relative; overflow: hidden;
+            background: linear-gradient(135deg, #0a4f3a 0%, #052a1f 50%, #020a07 100%);
+            border: 1px solid rgba(255, 255, 255, .14);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, .35);
+        }
+        .wallet::before { content: ''; position: absolute; right: -50px; top: -60px; width: 190px; height: 190px; border-radius: 50%; background: radial-gradient(circle, rgba(95, 240, 178, .55), transparent 68%); }
+        .wallet::after { content: ''; position: absolute; right: 40px; bottom: -70px; width: 150px; height: 150px; border-radius: 50%; border: 22px solid rgba(255, 255, 255, .05); }
+        .w-top { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; font-size: 12px; }
+        .w-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+        .w-tag { padding: 3px 10px; border-radius: 999px; background: rgba(0, 0, 0, .28); color: var(--o1); font-weight: 600; }
+        .w-bal { position: relative; z-index: 1; margin: 20px 0 16px; }
+        .w-bal small { display: block; color: rgba(233, 245, 239, .7); font-size: 12px; }
+        .w-bal strong { font-size: 34px; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+        .w-bot { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
+        .w-bot b { display: block; font-size: 14px; }
+        .w-bot span { font-size: 12px; color: rgba(233, 245, 239, .72); }
+
+        /* people picker */
+        .lab { font-size: 12px; color: var(--muted); margin: 14px 0 8px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+        .people { display: flex; gap: 8px; flex-wrap: wrap; }
+        .pc {
+            display: flex; align-items: center; gap: 9px; padding: 7px 12px 7px 7px; border-radius: 999px; cursor: pointer;
+            border: 1px solid var(--line); background: rgba(255, 255, 255, .03); transition: .15s; color: var(--text); font: inherit;
+        }
+        .pc:hover { border-color: rgba(255, 255, 255, .25); }
+        .pc.sel { border-color: var(--o1); background: rgba(95, 240, 178, .1); box-shadow: 0 0 0 3px rgba(95, 240, 178, .12); }
+        .pc b { display: block; font-size: 13px; line-height: 1.1; text-align: left; }
+        .pc small { color: var(--muted); font-size: 11px; }
+        .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+        .field { flex: 1; min-width: 120px; }
+        .field .in { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
+        .field .in:focus-within { border-color: var(--o1); }
+        .field .in span { color: var(--muted); font-weight: 600; }
+        input { background: transparent; border: none; outline: none; color: var(--text); font: inherit; font-size: 16px; padding: 12px 0; width: 100%; font-variant-numeric: tabular-nums; }
+        .quick { display: flex; gap: 6px; margin-top: 8px; }
+        .quick button { padding: 4px 11px; font-size: 12px; border-radius: 999px; background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: var(--muted); }
+        .quick button:hover { color: var(--text); border-color: rgba(255, 255, 255, .3); }
+
+        /* buttons */
+        button { font: inherit; cursor: pointer; border: none; color: var(--text); }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 12px; font-weight: 600; font-size: 14px; transition: .15s; }
+        .btn:disabled { opacity: .55; cursor: progress; }
+        .btn.pri { background: linear-gradient(135deg, var(--o1), var(--o2)); color: #1a0c00; box-shadow: 0 8px 22px rgba(31, 179, 127, .28); }
+        .btn.pri:hover:not(:disabled) { box-shadow: 0 12px 30px rgba(31, 179, 127, .45); }
+        .btn.sec { background: linear-gradient(135deg, rgba(23, 166, 115, .35), rgba(11, 93, 69, .5)); border: 1px solid rgba(63, 224, 160, .35); }
+        .btn.sec:hover:not(:disabled) { border-color: var(--ok); }
+        .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+        .btn.ghost:hover { color: var(--red); border-color: rgba(255, 107, 107, .5); }
+        .steps { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 18px; }
+        .steps .btn { flex-direction: column; gap: 6px; padding: 12px 8px; font-size: 13px; }
+        .steps .n { font-size: 11px; opacity: .75; font-weight: 700; }
+        .reset-row { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .reset-row small { color: var(--muted); font-size: 12px; }
+        .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, .25); border-top-color: currentColor; animation: rot .7s linear infinite; }
+        @keyframes rot { to { transform: rotate(360deg); } }
+
+        /* mesh graph */
+        .graph { width: 100%; height: auto; display: block; }
+        .gedge { stroke: rgba(255, 255, 255, .10); stroke-width: 1.2; transition: stroke .2s, stroke-width .2s; }
+        .gedge.hot { stroke: rgba(95, 240, 178, .75); stroke-width: 2; }
+        .gnode { cursor: pointer; }
+        .gnode .ng { transform-origin: 0 0; transition: transform .22s cubic-bezier(.3, 1.4, .5, 1); }
+        .gnode:hover .ng { transform: scale(1.18); }
+        .bk { stroke: var(--o1); stroke-width: 1.8; stroke-dasharray: 4 5; opacity: 0; transition: opacity .3s; }
+        .bk.on { opacity: .85; }
+        .gnode .body { fill: #0d2a21; stroke: rgba(255, 255, 255, .25); stroke-width: 1.5; }
+        .gnode.bridge .body { fill: #2b1a0d; stroke: var(--o1); stroke-width: 2.4; }
+        .gnode .halo { fill: none; stroke: var(--g1); stroke-width: 2; opacity: 0; }
+        .gnode.bridge .halo { stroke: var(--o1); opacity: .3; }
+        .gnode.pulse .halo { animation: halo 1s ease-out; }
+        @keyframes halo { 0% { r: 26px; opacity: .9; } 100% { r: 48px; opacity: 0; } }
+        .ini { fill: var(--text); font-weight: 700; font-size: 14px; text-anchor: middle; }
+        .lbl { fill: var(--muted); font-size: 12px; text-anchor: middle; }
+        .badge circle { fill: var(--g1); }
+        .gnode.bridge .badge circle { fill: var(--o2); }
+        .badge text { fill: #03100c; font-size: 11px; font-weight: 700; text-anchor: middle; }
+        .badge.zero { opacity: 0; }
+        .srv .body { fill: url(#srvGrad); stroke: rgba(255, 255, 255, .3); stroke-width: 1.5; }
+        .srv .lbl { fill: var(--text); font-weight: 600; }
+        .srv.flash .body { animation: srvflash .9s; }
+        @keyframes srvflash { 0% { stroke: var(--ok); stroke-width: 6; } 100% { stroke: rgba(255, 255, 255, .3); stroke-width: 1.5; } }
+        .fx.pk { fill: var(--ok); filter: drop-shadow(0 0 6px var(--ok)); }
+        .fx.up { fill: var(--o1); filter: drop-shadow(0 0 6px var(--o1)); }
+        .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+
+        /* tracker */
+        .track { display: grid; grid-template-columns: repeat(4, 1fr); }
+        .stp { text-align: center; position: relative; }
+        .stp::before { content: ''; position: absolute; top: 17px; left: -50%; width: 100%; height: 2px; background: var(--line); }
+        .stp:first-child::before { display: none; }
+        .stp .dot { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 8px; display: grid; place-items: center; background: #0d2a21; border: 1.5px solid var(--line); color: var(--muted); font-weight: 700; font-size: 14px; }
+        .stp b { display: block; font-size: 13px; }
+        .stp small { color: var(--muted); font-size: 11px; }
+        .stp.done::before { background: var(--g1); }
+        .stp.done .dot { background: linear-gradient(135deg, var(--g1), var(--g2)); border-color: transparent; color: #fff; }
+        .stp.active .dot { border-color: var(--o1); color: var(--o1); animation: glow 1.5s infinite; }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(95, 240, 178, .5); } 50% { box-shadow: 0 0 0 8px rgba(95, 240, 178, 0); } }
+        .stp.dup .dot { background: linear-gradient(135deg, var(--warn), #b36b00); border-color: transparent; color: #1a1000; }
+        .stp.dup::before { background: var(--warn); }
+        .stp.fail .dot { background: linear-gradient(135deg, #ff7b7b, #a32020); border-color: transparent; color: #fff; }
+        .stp.fail::before { background: var(--red); }
+        .tnote { margin-top: 16px; padding: 11px 14px; border-radius: 12px; background: rgba(0, 0, 0, .25); border: 1px solid var(--line); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .tnote code { font-family: Consolas, monospace; background: rgba(255, 255, 255, .07); padding: 2px 7px; border-radius: 6px; color: var(--text); }
+
+        /* accounts */
+        .acc { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+        .acc:last-of-type { border-bottom: none; }
+        .acc .who { flex: 1; min-width: 0; }
+        .acc .who b { display: block; font-size: 14px; }
+        .acc .who small { color: var(--muted); font-size: 12px; }
+        .bal { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; }
+        .bal small { display: block; font-size: 11px; font-weight: 600; margin-top: 2px; }
+        .chip.up { color: var(--ok); }
+        .chip.down { color: var(--red); }
+        .acc.flash { animation: rowflash 1.6s; }
+        @keyframes rowflash { 0% { background: rgba(95, 240, 178, .22); } 100% { background: transparent; } }
+        .note { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+
+        /* devices */
+        .dev { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0, 0, 0, .2); margin-bottom: 8px; }
+        .dev.bridge { border-color: rgba(95, 240, 178, .5); background: rgba(95, 240, 178, .07); }
+        .dev .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: rgba(255, 255, 255, .06); color: var(--muted); }
+        .dev.bridge .ico { background: rgba(95, 240, 178, .18); color: var(--o1); }
+        .dev .meta { flex: 1; min-width: 0; }
+        .dev .meta b { font-size: 14px; }
+        .dev .meta small { color: var(--muted); font-size: 12px; margin-left: 6px; }
+        .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+        .pill.on { background: rgba(95, 240, 178, .18); color: var(--o1); }
+        .pill.off { background: rgba(255, 255, 255, .07); color: var(--muted); }
+        .pids { margin-top: 5px; display: flex; gap: 5px; flex-wrap: wrap; }
+        .pid { font-family: Consolas, monospace; font-size: 11px; background: rgba(255, 255, 255, .07); padding: 2px 7px; border-radius: 6px; color: #b8d4c8; }
+
+        /* ledger */
+        .tbl { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+        th { text-align: left; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 0 10px 10px; font-weight: 600; }
+        td { padding: 11px 10px; border-top: 1px solid var(--line); white-space: nowrap; }
+        .pp { display: inline-flex; align-items: center; gap: 9px; }
+        .pp b { font-weight: 600; }
+        .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+        .tm { color: var(--muted); font-size: 12px; }
+        .st { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; letter-spacing: .3px; }
+        .st-SETTLED { background: rgba(63, 224, 160, .14); color: var(--ok); }
+        .st-DUPLICATE_DROPPED { background: rgba(255, 176, 32, .15); color: var(--warn); }
+        .st-REJECTED, .st-INVALID { background: rgba(255, 107, 107, .15); color: var(--red); }
+        tr.new-row td { animation: rowflash 2.2s; }
+        .empty { text-align: center; color: var(--muted); padding: 26px 0 10px; font-size: 14px; }
+
+        /* log */
+        #log { background: rgba(0, 0, 0, .35); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-family: Consolas, Monaco, monospace; font-size: 12.5px; height: 280px; overflow-y: auto; }
+        .ll { padding: 3px 0; color: #b8d4c8; line-height: 1.5; }
+        .ll:first-child { color: #fff; }
+        .ll time { color: var(--muted); margin-right: 8px; }
+        .tag { display: inline-block; min-width: 62px; text-align: center; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 6px; margin-right: 8px; letter-spacing: .5px; }
+        .tag.send { background: rgba(95, 240, 178, .18); color: var(--o1); }
+        .tag.gossip { background: rgba(63, 224, 160, .15); color: var(--ok); }
+        .tag.bridge { background: rgba(80, 160, 255, .16); color: #8cc2ff; }
+        .tag.warn { background: rgba(255, 176, 32, .16); color: var(--warn); }
+        .tag.err { background: rgba(255, 107, 107, .16); color: var(--red); }
+        .tag.sys { background: rgba(255, 255, 255, .08); color: var(--muted); }
+
+        /* toasts */
+        #toasts { position: fixed; top: 18px; right: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 50; width: min(340px, calc(100vw - 36px)); }
+        .toast { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: #0c241b; border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); animation: tin .25s ease-out; }
+        .toast.out { opacity: 0; transform: translateX(20px); transition: .3s; }
+        .toast .ti { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+        .toast.ok .ti { background: rgba(63, 224, 160, .18); color: var(--ok); }
+        .toast.warn .ti { background: rgba(255, 176, 32, .18); color: var(--warn); }
+        .toast.err .ti { background: rgba(255, 107, 107, .18); color: var(--red); }
+        .toast.info .ti { background: rgba(95, 240, 178, .18); color: var(--o1); }
+        .toast b { display: block; font-size: 14px; }
+        .toast span { font-size: 12.5px; color: var(--muted); }
+        @keyframes tin { from { opacity: 0; transform: translateX(24px); } }
+
+        footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+
+        /* ================= motion + cursor effects ================= */
+        .wrap { position: relative; z-index: 1; }
+
+        /* page entrance */
+        .card { position: relative; animation: rise .65s cubic-bezier(.2, .8, .2, 1) both; }
+        @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+
+        /* ambient background blobs + cursor spotlight */
+        .blob { position: fixed; border-radius: 50%; filter: blur(70px); pointer-events: none; z-index: 0; opacity: .2; }
+        .blob.b1 { width: 420px; height: 420px; left: -120px; top: 30%; background: rgba(23, 166, 115, .35); }
+        .blob.b2 { width: 360px; height: 360px; right: -100px; bottom: 5%; background: rgba(31, 179, 127, .22); }
+        #spot {
+            position: fixed; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%;
+            pointer-events: none; z-index: 0; opacity: 0; transition: opacity .4s;
+            background: radial-gradient(circle, rgba(39, 211, 154, .08) 0%, rgba(95, 240, 178, .03) 38%, transparent 68%);
+        }
+        #spot.on { opacity: 1; }
+
+        /* cards: border glow + soft light that follow the cursor */
+        .card::before {
+            content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .25s;
+            background: radial-gradient(280px circle at var(--cx, 50%) var(--cy, 50%), rgba(95, 240, 178, .9), rgba(63, 224, 160, .4) 45%, transparent 70%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+        }
+        .card::after {
+            content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s;
+            background: radial-gradient(380px circle at var(--cx, 50%) var(--cy, 50%), rgba(95, 240, 178, .08), transparent 60%);
+        }
+        .card:hover::before, .card:hover::after { opacity: 1; }
+
+        /* buttons: calm hover lift + press */
+        .btn { transition: transform .15s ease, box-shadow .2s, border-color .2s, filter .2s, background .2s; }
+        .btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+        .btn:active:not(:disabled) { transform: translateY(0) scale(.98); filter: brightness(.96); }
+
+        /* small hover lifts */
+        .pc:hover { transform: translateY(-2px); }
+        .quick button { transition: transform .15s, color .15s, border-color .15s; }
+        .quick button:hover { transform: translateY(-2px); }
+        .dev { transition: transform .18s, border-color .18s, background .18s; }
+        .dev:hover { transform: translateX(4px); border-color: rgba(255, 255, 255, .25); }
+        .acc { transition: transform .18s, background .18s; border-radius: 12px; }
+        .acc:hover { transform: translateX(4px); background: rgba(255, 255, 255, .035); }
+        tbody tr td { transition: background .15s; }
+        tbody tr:hover td { background: rgba(255, 255, 255, .04); }
+
+        /* graph tooltip */
+        #tip { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; opacity: 0; transition: opacity .15s; max-width: 230px; padding: 9px 12px; border-radius: 12px; background: #0c241b; border: 1px solid rgba(95, 240, 178, .5); box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
+        #tip.show { opacity: 1; }
+        #tip b { display: block; font-size: 13px; }
+        #tip span { font-size: 12px; color: var(--muted); }
+
+        /* start phone select */
+        select { background: rgba(0, 0, 0, .28); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 12px; outline: none; width: 100%; cursor: pointer; }
+        select:focus { border-color: var(--o1); }
+        select option { background: #0a1f18; color: var(--text); }
+
+
+        /* ================= round 2 ================= */
+        .btn.ghost:hover:not(:disabled) { background: linear-gradient(135deg, #ff6b6b, #c0261f); color: #fff; border-color: transparent; box-shadow: 0 8px 22px rgba(220, 50, 40, .4); }
+        .btn.ghost:active:not(:disabled) { background: linear-gradient(135deg, #e55555, #a91d17); }
+        .steps .btn { padding: 14px 8px; }
+        .steps .btn span { display: inline-flex; gap: 7px; align-items: center; text-align: center; line-height: 1.25; }
+        .steps .btn { font-size: 13px; }
+        .muted { color: var(--muted); }
+        .sm { font-size: 12px; }
+        .mono, .lnk { font-family: Consolas, Monaco, monospace; }
+        .lnk { cursor: pointer; }
+        .pid.lnk:hover, .tnote code.lnk:hover { background: rgba(95, 240, 178, .22); color: var(--o1); }
+        .lnkbtn { margin-left: auto; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(95, 240, 178, .14); color: var(--o1); border: 1px solid rgba(95, 240, 178, .4); }
+        .lnkbtn:hover { background: rgba(95, 240, 178, .26); }
+
+        /* stats */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+        @media (max-width: 760px) { .stats { grid-template-columns: 1fr 1fr; } }
+        .stat { position: relative; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); overflow: hidden; animation: rise .65s cubic-bezier(.2, .8, .2, 1) both; transition: transform .18s, border-color .18s; }
+        .stat:hover { transform: translateY(-3px); border-color: rgba(95, 240, 178, .45); }
+        .stat::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--o1), var(--g1)); }
+        .stat small { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        .stat b { display: block; margin-top: 6px; font-size: 26px; font-variant-numeric: tabular-nums; }
+
+        /* scenarios */
+        .scrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+        .scrow .btn { padding: 10px 6px; font-size: 13px; }
+        @media (max-width: 520px) { .scrow { grid-template-columns: 1fr; } }
+
+        /* success / failure receipt */
+        #dim { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 70; }
+        #dim.show { opacity: 1; pointer-events: auto; }
+        #rcpt { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(1, 8, 6, .72); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .25s; }
+        #rcpt.show { opacity: 1; pointer-events: auto; }
+        .rc { position: relative; width: min(400px, 100%); text-align: center; padding: 30px 26px 24px; border-radius: 24px; background: linear-gradient(160deg, #0e3a2c, #07211a 70%); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 30px 80px rgba(0, 0, 0, .6); transform: scale(.9); transition: transform .35s cubic-bezier(.3, 1.4, .5, 1); overflow: visible; }
+        #rcpt.show .rc { transform: scale(1); }
+        .rc.fail { background: linear-gradient(160deg, #3a1414, #1d0a0a 70%); }
+        .tick { width: 84px; height: 84px; }
+        .tick circle { fill: rgba(63, 224, 160, .12); stroke: var(--ok); stroke-width: 2.5; stroke-dasharray: 160; stroke-dashoffset: 160; animation: draw .6s .1s ease-out forwards; }
+        .tick path { fill: none; stroke: var(--ok); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 50; stroke-dashoffset: 50; animation: draw .4s .55s ease-out forwards; }
+        .rc.fail .tick circle { fill: rgba(255, 107, 107, .12); stroke: var(--red); }
+        .rc.fail .tick path { stroke: var(--red); }
+        @keyframes draw { to { stroke-dashoffset: 0; } }
+        .rc h3 { margin: 10px 0 2px; font-size: 18px; }
+        .rc .big { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; background: linear-gradient(90deg, #fff, var(--o1)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .rc p { margin: 2px 0 16px; color: var(--muted); font-size: 14px; }
+        .rc p b { color: var(--text); }
+        .kvs { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; background: rgba(0, 0, 0, .22); text-align: left; }
+        .kv { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+        .kv:last-child { border-bottom: none; }
+        .kv span { color: var(--muted); flex: none; }
+        .kv b { font-weight: 600; text-align: right; word-break: break-word; }
+        .rc-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+        .cf { position: absolute; left: 50%; top: 70px; width: 8px; height: 12px; border-radius: 2px; pointer-events: none; animation: cf 1.3s ease-out forwards; }
+        @keyframes cf { from { opacity: 1; transform: translate(0, 0) rotate(0); } to { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)); } }
+
+        /* packet inspector drawer */
+        #drawer { position: fixed; right: 0; top: 0; bottom: 0; width: min(430px, 100vw); z-index: 75; padding: 22px 22px 40px; overflow-y: auto; background: linear-gradient(180deg, #0b2a21, #061711); border-left: 1px solid var(--line); box-shadow: -30px 0 60px rgba(0, 0, 0, .5); transform: translateX(105%); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+        #drawer.open { transform: none; }
+        .dtop { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+        .dtop small { color: var(--muted); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 700; }
+        .dtop h3 { margin: 4px 0 0; font-size: 22px; color: var(--o1); }
+        .dx { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .07); }
+        .dx:hover { background: rgba(255, 107, 107, .25); }
+        .dh { margin: 20px 0 8px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+        .jr { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13.5px; color: var(--muted); }
+        .jr i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line); flex: none; }
+        .jr.done { color: var(--text); }
+        .jr.done i { background: linear-gradient(135deg, var(--g1), var(--g2)); border-color: transparent; color: #fff; }
+        .holds { display: flex; gap: 6px; flex-wrap: wrap; }
+        .hold { font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: rgba(255, 255, 255, .07); }
+        .hold.br { background: rgba(95, 240, 178, .18); color: var(--o1); }
+        .cbox { font-family: Consolas, Monaco, monospace; font-size: 12px; line-height: 1.55; padding: 12px; border-radius: 12px; background: rgba(0, 0, 0, .4); border: 1px solid var(--line); color: #8fe8c0; word-break: break-all; }
+
+
+        /* debit / credit animation */
+        .acc.debit { animation: debitflash 1.7s; }
+        .acc.credit { animation: creditflash 1.9s; }
+        @keyframes debitflash { 0% { background: rgba(255, 107, 107, .22); } 100% { background: transparent; } }
+        @keyframes creditflash { 0% { background: rgba(63, 224, 160, .24); } 100% { background: transparent; } }
+        .fl { position: fixed; z-index: 95; pointer-events: none; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; transform: translate(-100%, -50%); animation: fl 1.5s ease-out forwards; text-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
+        .fl.out { color: var(--red); }
+        .fl.in { color: var(--ok); }
+        @keyframes fl { 0% { opacity: 0; margin-top: 4px; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -42px; } }
+        .coin { position: fixed; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; z-index: 96; pointer-events: none; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #03281c; background: radial-gradient(circle at 35% 30%, #eafff6, #5ff0b2 55%, #1fb37f); box-shadow: 0 0 14px 3px rgba(95, 240, 178, .6); }
+
+
+        /* orange is reserved for action buttons */
+        .btn.pri { background: linear-gradient(135deg, var(--ob1), var(--ob2)); color: #1a0c00; box-shadow: 0 8px 22px rgba(255, 106, 26, .30); }
+        .btn.pri:hover:not(:disabled) { box-shadow: 0 12px 30px rgba(255, 106, 26, .45); }
+        .lnkbtn { background: rgba(255, 154, 60, .14); color: var(--ob1); border-color: rgba(255, 154, 60, .45); }
+        .lnkbtn:hover { background: rgba(255, 154, 60, .26); }
+
+        /* cursor: white arrow */
+        body { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M5 3v18l4.6-4.2 3 7 3.2-1.4-3-6.8H19z' fill='%23ffffff' stroke='%23000000' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") 5 3, auto; }
+        button, .btn, .pc, select, .lnk, .gnode, .dx, [data-pid] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M5 3v18l4.6-4.2 3 7 3.2-1.4-3-6.8H19z' fill='%23ffffff' stroke='%23000000' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") 5 3, pointer; }
+        input { cursor: text; }
+
+        .steps .btn { flex-direction: row; gap: 10px; justify-content: flex-start; padding: 12px 12px; text-align: left; }
+        .steps .btn span { justify-content: flex-start; text-align: left; }
+        .sn { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 800; background: rgba(0, 0, 0, .32); color: #fff; border: 1px solid rgba(255, 255, 255, .22); }
+        .btn.pri .sn { background: rgba(26, 12, 0, .85); color: #ffb35c; border-color: transparent; }
+
+
+        /* round 4: numbered steps, orange "Pay", stat boxes green until hovered */
+        .sn { font-style: normal; flex: none; width: 21px; height: 21px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; background: rgba(0, 0, 0, .32); color: #fff; }
+        .btn.pri .sn { background: rgba(0, 0, 0, .28); color: #fff; }
+        .brand h1 span { background: linear-gradient(90deg, var(--ob1), var(--ob2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .stat::before { background: linear-gradient(180deg, #27d39a, #0b5d45); }
+        .stat::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--ob1), var(--ob2)); opacity: 0; transition: opacity .2s; }
+        .stat:hover { border-color: rgba(255, 154, 60, .5); }
+        .stat:hover::after { opacity: 1; }
+        .stat:hover small { color: var(--ob1); }
+
+
+        /* round 5: own colours for graph states (orange stays for buttons and logo) */
+        :root { --c-off: #8aa0ad; --c-br: #3cc7d9; --c-pk: #3fe0a0; --c-up: #c084fc; }
+        .gnode .body { stroke: rgba(138, 160, 173, .55); }
+        .gnode.bridge .body { fill: #082a31; stroke: var(--c-br); stroke-width: 2.4; }
+        .gnode .halo { stroke: var(--c-pk); }
+        .gnode.bridge .halo { stroke: var(--c-br); opacity: .3; }
+        .gnode.pulse .halo { animation: halo 1s ease-out; }
+        .badge circle { fill: var(--c-off); }
+        .gnode.bridge .badge circle { fill: var(--c-br); }
+        .bk { stroke: var(--c-up); }
+        .fx.pk { fill: var(--c-pk); filter: drop-shadow(0 0 6px var(--c-pk)); }
+        .fx.up { fill: var(--c-up); filter: drop-shadow(0 0 6px var(--c-up)); }
+        .dev.bridge { border-color: rgba(60, 199, 217, .5); background: rgba(60, 199, 217, .07); }
+        .dev.bridge .ico { background: rgba(60, 199, 217, .18); color: var(--c-br); }
+        .pill.on { background: rgba(60, 199, 217, .18); color: var(--c-br); }
+        .pill.off { color: var(--c-off); }
+        .hold.br { background: rgba(60, 199, 217, .18); color: var(--c-br); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+        <linearGradient id="srvGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#17a673"/><stop offset="1" stop-color="#0b3d2e"/>
+        </linearGradient>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#27d39a"/><stop offset="1" stop-color="#0b5d45"/>
+        </linearGradient>
+    </defs>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M16 16l-4-4-4 4"/><path d="M12 12v9"/><path d="M20.4 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.3"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M1 4v6h6"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14 0M1.4 9a16 16 0 0 1 21.2 0M8.5 16.1a6 6 0 0 1 7 0M12 20h.01"/></symbol>
+    <symbol id="i-wifioff" viewBox="0 0 24 24"><path d="M1 1l22 22M16.7 11.1A11 11 0 0 1 19 12.6M5 12.6a11 11 0 0 1 5.2-2.5M10.7 5.1A16 16 0 0 1 22.6 9M1.4 9a16 16 0 0 1 4.7-2.8M8.5 16.1a6 6 0 0 1 7 0M12 20h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+</svg>
+
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div id="spot"></div>
+<div id="tip"></div>
+<div id="toasts"></div>
+<div id="dim"></div>
+<aside id="drawer" aria-label="Packet inspector"></aside>
+<div id="rcpt"></div>
+
+<div class="wrap">
+    <header>
+        <div class="brand">
+            <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                <rect width="48" height="48" rx="14" fill="url(#logoGrad)"/>
+                <path d="M34.5 14A14 14 0 1 0 38 24" stroke="#ff9a3c" stroke-width="2.8" stroke-linecap="round" fill="none"/><path d="M17.5 17.5h13M17.5 22h13M20 17.5c6.5 0 6.5 8.5 0 8.5h-2.5l9 8" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="37" cy="12" r="3.4" fill="#9bffd6"/>
+            </svg>
+            <div>
+                <h1>OffGrid <span>Pay</span></h1>
+                <p>Send money with zero internet. Encrypted packets hop from phone to phone until one with 4G reaches the bank.</p>
+            </div>
+        </div>
+        <div class="live" id="live"><i></i><span>Live</span></div>
+    </header>
+
+    <div class="stats">
+        <div class="stat"><small>Payments settled</small><b id="st-count">0</b></div>
+        <div class="stat"><small>Money moved</small><b id="st-vol">&#8377;0.00</b></div>
+        <div class="stat"><small>Duplicates blocked</small><b id="st-dup">0</b></div>
+        <div class="stat"><small>Average hops</small><b id="st-hops">-</b></div>
+    </div>
+
+    <div class="grid g-top">
+        <!-- COMPOSE -->
+        <section class="card">
+            <h2>Send payment</h2>
+            <div class="wallet" id="wallet"></div>
+
+            <div class="lab">From</div>
+            <div class="people" id="fromList"></div>
+            <div class="lab">To</div>
+            <div class="people" id="toList"></div>
+
+            <div class="row" style="margin-top:16px">
+                <div class="field" style="flex:1.4">
+                    <div class="lab" style="margin-top:0">Amount</div>
+                    <div class="in"><span>&#8377;</span><input type="number" id="amount" value="500" min="1" inputmode="decimal"></div>
+                </div>
+                <div class="field">
+                    <div class="lab" style="margin-top:0">UPI PIN</div>
+                    <div class="in"><svg class="ic sm" style="color:var(--muted)"><use href="#i-lock"/></svg><input type="password" id="pin" value="1234" maxlength="4" inputmode="numeric" autocomplete="off"></div>
+                </div>
+            </div>
+            <div class="quick">
+                <button type="button" onclick="setAmt(100)">100</button>
+                <button type="button" onclick="setAmt(500)">500</button>
+                <button type="button" onclick="setAmt(1000)">1,000</button>
+                <button type="button" onclick="setAmt(2000)">2,000</button>
+            </div>
+            <div class="lab">Send from phone</div>
+            <select id="startNode"><option value="phone-alice">Node A</option></select>
+
+            <div class="steps">
+                <button class="btn pri" id="btnSend" onclick="sendPacket()"><span style="display:inline-flex;gap:7px;align-items:center"><i class="sn">1</i><svg class="ic"><use href="#i-send"/></svg>Inject into Mesh</span></button>
+                <button class="btn sec" id="btnGossip" onclick="gossip()"><span style="display:inline-flex;gap:7px;align-items:center"><i class="sn">2</i><svg class="ic"><use href="#i-share"/></svg>Run Gossip Round</span></button>
+                <button class="btn sec" id="btnFlush" onclick="flushBridges()"><span style="display:inline-flex;gap:7px;align-items:center"><i class="sn">3</i><svg class="ic"><use href="#i-upload"/></svg>Bridges Upload to Backend</span></button>
+            </div>
+            <div class="sc">
+                <div class="lab" style="margin-top:18px">Scenarios</div>
+                <div class="scrow">
+                    <button class="btn sec" onclick="runScenario('full')">Run full demo</button>
+                    <button class="btn sec" onclick="runScenario('storm')">Duplicate storm</button>
+                    <button class="btn sec" onclick="runScenario('low')">Low balance</button>
+                </div>
+                <small class="muted sm">Each one runs inject, gossip and upload for you. Duplicate storm uploads the same packet three times at once.</small>
+            </div>
+            <div class="reset-row">
+                <small>Bridges upload in parallel, which exercises idempotency.</small>
+                <button class="btn ghost" id="btnReset" onclick="resetMesh()"><svg class="ic sm"><use href="#i-reset"/></svg>Reset</button>
+            </div>
+        </section>
+
+        <!-- MESH GRAPH + TRACKER -->
+        <section class="card">
+            <h2>Mesh network <em id="cacheInfo"></em></h2>
+            <svg class="graph" id="graph" viewBox="0 0 640 400" aria-label="Mesh network graph"></svg>
+            <div class="legend">
+                <span><i style="background:var(--c-off)"></i>Offline phone</span>
+                <span><i style="background:var(--c-br)"></i>Bridge with 4G</span>
+                <span><i style="background:var(--c-pk)"></i>Packet hop</span>
+                <span><i style="background:var(--c-up)"></i>Upload to backend</span>
+            </div>
+            <h2 style="margin-top:22px">Delivery status</h2>
+            <div class="track" id="track"></div>
+            <div class="tnote" id="tnote"></div>
+        </section>
+    </div>
+
+    <div class="grid g-mid">
+        <section class="card">
+            <h2>Accounts</h2>
+            <div id="accounts"></div>
+            <p class="note">Balances update when a payment settles at the backend.</p>
+        </section>
+        <section class="card">
+            <h2>Devices</h2>
+            <div id="devices"></div>
+        </section>
+    </div>
+
+    <section class="card" style="margin-bottom:18px">
+        <h2>Transactions</h2>
+        <div class="tbl">
+            <table>
+                <thead><tr><th>ID</th><th>From</th><th>To</th><th>Amount</th><th>Status</th><th>Bridge</th><th>Hops</th><th>Time</th></tr></thead>
+                <tbody id="txBody"></tbody>
+            </table>
+        </div>
+        <div class="empty" id="txEmpty" style="display:none">No transactions yet. Inject a payment to get started.</div>
+    </section>
+
+    <section class="card">
+        <h2>Activity log</h2>
+        <div id="log"></div>
+    </section>
+
+    <footer>OffGrid Pay</footer>
+</div>
+
+<script>
+    /* ---------- display names (frontend only; backend still uses the original VPAs) ---------- */
+    const PEOPLE = {
+        'alice@demo': {name: 'Virat',  vpa: 'virat@offgrid',  g: ['#27d39a', '#0b6b4e']},
+        'bob@demo':   {name: 'Rohit',  vpa: 'rohit@offgrid',  g: ['#c084fc', '#6d28d9']},
+        'carol@demo': {name: 'Hardik', vpa: 'hardik@offgrid', g: ['#3cc7d9', '#17667f']},
+        'dave@demo':  {name: 'Rahul',  vpa: 'rahul@offgrid',  g: ['#f4cd57', '#b7791f']}
+    };
+    // if the backend VPAs are renamed to the offgrid ones, the same names keep working
+    PEOPLE['virat@offgrid'] = PEOPLE['alice@demo'];
+    PEOPLE['rohit@offgrid'] = PEOPLE['bob@demo'];
+    PEOPLE['hardik@offgrid'] = PEOPLE['carol@demo'];
+    PEOPLE['rahul@offgrid'] = PEOPLE['dave@demo'];
+    const NODES = {
+        'phone-bridge':    {label: 'Bridge Node', short: 'BR'},
+        'phone-alice':     {label: 'Node A', short: 'A'},
+        'phone-stranger1': {label: 'Node B', short: 'B'},
+        'phone-stranger2': {label: 'Node C', short: 'C'},
+        'phone-stranger3': {label: 'Node D', short: 'D'}
+    };
+    const NS = 'http://www.w3.org/2000/svg';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const fmt = n => Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const ic = (name, cls) => `<svg class="ic ${cls || ''}"><use href="#i-${name}"/></svg>`;
+
+    function person(vpa) {
+        return PEOPLE[vpa] || {name: cap(String(vpa).split('@')[0]), vpa: vpa, g: ['#5b7f72', '#2b4a3f']};
+    }
+    function nodeInfo(id) {
+        return NODES[id] || {label: id, short: String(id).slice(-2).toUpperCase()};
+    }
+    function avatar(vpa, size) {
+        const p = person(vpa);
+        return `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px;background:linear-gradient(135deg,${p.g[0]},${p.g[1]})">${esc(p.name.charAt(0))}</span>`;
+    }
+
+    /* ---------- state ---------- */
+    const sel = {from: null, to: null};
+    let accounts = [];
+    let lastMesh = null;
+    const prevBal = {};
+    const chips = {};
+    let changedNow = {};
+    const knownTx = new Set();
+    let firstTx = true;
+    // tracker: done = number of completed steps (0-4); status: idle | active | ok | dup | fail
+    const tracker = {packet: null, done: 0, status: 'idle', note: '', meta: null};
+
+    /* ---------- toasts + log ---------- */
+    function toast(kind, title, msg) {
+        const icon = {ok: 'check', warn: 'alert', err: 'x', info: 'info'}[kind] || 'info';
+        const el = document.createElement('div');
+        el.className = 'toast ' + kind;
+        el.innerHTML = `<div class="ti">${ic(icon, 'sm')}</div><div><b>${esc(title)}</b><span>${esc(msg || '')}</span></div>`;
+        $('toasts').appendChild(el);
+        setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 3800);
+    }
+    function log(tag, kind, msg) {
+        const el = document.createElement('div');
+        el.className = 'll';
+        el.innerHTML = `<time>${new Date().toLocaleTimeString()}</time><span class="tag ${kind}">${esc(tag)}</span>${esc(msg)}`;
+        const box = $('log');
+        box.insertBefore(el, box.firstChild);
+    }
+    function setLive(ok) {
+        const l = $('live');
+        l.classList.toggle('off', !ok);
+        l.querySelector('span').textContent = ok ? 'Live' : 'Backend unreachable';
+    }
+    async function api(path, opts) {
+        const r = await fetch(path, opts);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }
+    function busy(id, on) {
+        const b = $(id);
+        b.disabled = on;
+    }
+
+    /* ---------- compose ---------- */
+    let peopleSig = '';
+    function renderPeople() {
+        const sig = accounts.map(a => a.vpa).join('|') + '#' + sel.from + '#' + sel.to;
+        if (sig === peopleSig) return;
+        peopleSig = sig;
+        const mk = (list, key) => list.map(a => {
+            const p = person(a.vpa);
+            return `<button type="button" class="pc ${sel[key] === a.vpa ? 'sel' : ''}" data-key="${key}" data-vpa="${esc(a.vpa)}">
+            ${avatar(a.vpa, 30)}<span><b>${esc(p.name)}</b><small>${esc(p.vpa)}</small></span></button>`;
+        }).join('');
+        $('fromList').innerHTML = mk(accounts, 'from');
+        $('toList').innerHTML = mk(accounts, 'to');
+    }
+    document.addEventListener('click', e => {
+        const b = e.target.closest('.pc');
+        if (!b) return;
+        const key = b.dataset.key, vpa = b.dataset.vpa;
+        sel[key] = vpa;
+        if (sel.from === sel.to) {
+            const other = accounts.find(a => a.vpa !== vpa);
+            const k2 = key === 'from' ? 'to' : 'from';
+            if (other) sel[k2] = other.vpa;
+        }
+        peopleSig = '';
+        renderPeople();
+        renderWallet();
+    });
+    function setAmt(v) { $('amount').value = v; }
+    let walletShown = {vpa: null, bal: null};
+    function renderWallet() {
+        const a = accounts.find(x => x.vpa === sel.from);
+        if (!a) { $('wallet').innerHTML = ''; return; }
+        const p = person(a.vpa);
+        $('wallet').innerHTML = `
+        <div class="w-top"><span class="w-brand">${ic('wifioff', 'sm')}OffGrid Pay</span><span class="w-tag">Offline mode</span></div>
+        <div class="w-bal"><small>Available balance</small><strong>&#8377;${fmt(a.balance)}</strong></div>
+        <div class="w-bot">${avatar(a.vpa, 36)}<div><b>${esc(p.name)}</b><span>${esc(p.vpa)}</span></div></div>`;
+        const nb = parseFloat(a.balance);
+        if (walletShown.vpa === a.vpa && walletShown.bal !== null && Math.abs(walletShown.bal - nb) > 0.0001) {
+            countTo($('wallet').querySelector('.w-bal strong'), walletShown.bal, nb, 250, 1000);
+        }
+        walletShown = {vpa: a.vpa, bal: nb};
+    }
+
+    /* ---------- accounts ---------- */
+    function countTo(el, from, to, delay, dur) {
+        if (!el) return;
+        if (CALM) { el.textContent = '\u20B9' + fmt(to); return; }
+        el.textContent = '\u20B9' + fmt(from);
+        const t0 = performance.now() + delay;
+        (function tick(t) {
+            if (t < t0) { requestAnimationFrame(tick); return; }
+            const k = Math.min(1, (t - t0) / dur);
+            const e = 1 - Math.pow(1 - k, 3);
+            el.textContent = '\u20B9' + fmt(from + (to - from) * e);
+            if (k < 1) requestAnimationFrame(tick); else el.textContent = '\u20B9' + fmt(to);
+        })(performance.now());
+    }
+    function floatText(el, text, cls) {
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const f = document.createElement('div');
+        f.className = 'fl ' + cls;
+        f.textContent = text;
+        f.style.left = (r.right - 4) + 'px';
+        f.style.top = (r.top + r.height / 2) + 'px';
+        f.addEventListener('animationend', () => f.remove());
+        document.body.appendChild(f);
+    }
+    function flyCoin(fromEl, toEl, delay, dur, done) {
+        if (!fromEl || !toEl) { setTimeout(done, delay + dur); return; }
+        const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+        const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+        const bx = b.left + b.width / 2, by = b.top + b.height / 2;
+        const c = document.createElement('div');
+        c.className = 'coin';
+        c.textContent = '\u20B9';
+        document.body.appendChild(c);
+        const mx2 = (ax + bx) / 2 + 70, my2 = (ay + by) / 2;
+        const kf = [
+            {transform: `translate(${ax}px, ${ay}px) scale(.4)`, opacity: 0},
+            {transform: `translate(${ax}px, ${ay}px) scale(1)`, opacity: 1, offset: .12},
+            {transform: `translate(${mx2}px, ${my2}px) scale(1.15)`, opacity: 1, offset: .55},
+            {transform: `translate(${bx}px, ${by}px) scale(1)`, opacity: 1, offset: .92},
+            {transform: `translate(${bx}px, ${by}px) scale(.3)`, opacity: 0}
+        ];
+        const an = c.animate(kf, {duration: dur, delay: delay, easing: 'ease-in-out', fill: 'both'});
+        setTimeout(done, delay + dur * 0.9);
+        an.onfinish = () => c.remove();
+    }
+    let accSig = '';
+    function renderAccounts(accs) {
+        changedNow = {};
+        const moves = [];
+        accs.forEach(a => {
+            const b = parseFloat(a.balance);
+            if (prevBal[a.vpa] !== undefined && Math.abs(prevBal[a.vpa] - b) > 0.0001) {
+                chips[a.vpa] = {d: b - prevBal[a.vpa], from: prevBal[a.vpa], until: Date.now() + 9000};
+                changedNow[a.vpa] = true;
+                moves.push({vpa: a.vpa, from: prevBal[a.vpa], to: b, d: b - prevBal[a.vpa]});
+            }
+            prevBal[a.vpa] = b;
+        });
+        const sig = accs.map(a => a.vpa + ':' + a.balance + ':' + ((chips[a.vpa] && chips[a.vpa].until > Date.now()) ? 1 : 0)).join('|');
+        if (!moves.length && sig === accSig) return;
+        accSig = sig;
+        $('accounts').innerHTML = accs.map(a => {
+            const p = person(a.vpa);
+            const c = chips[a.vpa];
+            let chip = '';
+            if (c && c.until > Date.now()) {
+                chip = `<small class="chip ${c.d > 0 ? 'up' : 'down'}">${c.d > 0 ? '+' : '-'}&#8377;${fmt(Math.abs(c.d))} <span style="color:var(--muted);font-weight:500">(was &#8377;${fmt(c.from)})</span></small>`;
+            }
+            return `<div class="acc" data-vpa="${esc(a.vpa)}">
+            ${avatar(a.vpa, 42)}
+            <div class="who"><b>${esc(p.name)}</b><small>${esc(p.vpa)}</small></div>
+            <div class="bal"><span class="bnum">&#8377;${fmt(a.balance)}</span>${chip}</div></div>`;
+        }).join('');
+        if (!moves.length) return;
+
+        const card = $('accounts').closest('.card');
+        if (card && !CALM) {
+            const r = card.getBoundingClientRect();
+            if (r.top < 60 || r.bottom > innerHeight - 20) card.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+        const row = v => document.querySelector('.acc[data-vpa="' + v + '"]');
+        const outs = moves.filter(m => m.d < 0), ins = moves.filter(m => m.d > 0);
+        const DEBIT_MS = 1000, FLY_MS = 950;
+        outs.forEach(m => {
+            const r = row(m.vpa);
+            if (!r) return;
+            countTo(r.querySelector('.bnum'), m.from, m.to, 0, DEBIT_MS);
+            if (!CALM) { r.classList.add('debit'); floatText(r.querySelector('.bnum'), '-\u20B9' + fmt(-m.d), 'out'); }
+        });
+        ins.forEach((m, i) => {
+            const r = row(m.vpa);
+            if (!r) return;
+            const bn = r.querySelector('.bnum');
+            bn.textContent = '\u20B9' + fmt(m.from);
+            const src = outs.length === ins.length ? outs[i] : outs[0];
+            const arrive = () => {
+                const r2 = row(m.vpa);
+                if (!r2) return;
+                countTo(r2.querySelector('.bnum'), m.from, m.to, 0, 800);
+                if (!CALM) { r2.classList.add('credit'); floatText(r2.querySelector('.bnum'), '+\u20B9' + fmt(m.d), 'in'); }
+            };
+            if (CALM || !src) { arrive(); return; }
+            const sr = row(src.vpa);
+            flyCoin(sr && sr.querySelector('.av'), r.querySelector('.av'), 250, FLY_MS, arrive);
+        });
+    }
+
+    /* ---------- devices + graph ---------- */
+    const pos = {};
+    let graphSig = '';
+    function buildGraph(devs) {
+        const ids = devs.map(d => d.deviceId).sort((a, b) => {
+            const ab = a.indexOf('bridge') >= 0 ? 0 : 1, bb = b.indexOf('bridge') >= 0 ? 0 : 1;
+            return ab - bb || a.localeCompare(b);
+        });
+        const sig = ids.join('|');
+        if (sig === graphSig) return;
+        graphSig = sig;
+        const cx = 320, cy = 200, rx = 235, ry = 138, n = ids.length;
+        ids.forEach((id, i) => {
+            const ang = (i / n) * Math.PI * 2;
+            pos[id] = {x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang)};
+        });
+        pos.__srv = {x: cx, y: cy};
+        let html = '';
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+            html += `<line class="gedge" data-a="${esc(ids[i])}" data-b="${esc(ids[j])}" x1="${pos[ids[i]].x}" y1="${pos[ids[i]].y}" x2="${pos[ids[j]].x}" y2="${pos[ids[j]].y}"/>`;
+        }
+        ids.forEach(id => {
+            html += `<line class="bk" id="bk-${esc(id)}" x1="${pos[id].x}" y1="${pos[id].y}" x2="${cx}" y2="${cy}"/>`;
+        });
+        html += `<g class="srv" id="srv" transform="translate(${cx},${cy})">
+        <circle class="body" r="34"/>
+        <g stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".9">
+            <rect x="-13" y="-16" width="26" height="9" rx="2.5"/><rect x="-13" y="-4" width="26" height="9" rx="2.5"/><path d="M-8 -11.5h.01M-8 0.5h.01"/><path d="M0 5v6M-9 12h18"/>
+        </g>
+        <text class="lbl" y="54">Backend</text></g>`;
+        ids.forEach(id => {
+            const info = nodeInfo(id);
+            html += `<g class="gnode" id="gn-${esc(id)}" transform="translate(${pos[id].x},${pos[id].y})">
+            <circle r="40" fill="transparent"/>
+            <g class="ng">
+            <circle class="halo" r="26"/><circle class="body" r="26"/>
+            <text class="ini" y="5">${esc(info.short)}</text>
+            <g class="badge zero" transform="translate(20,-20)"><circle r="11"/><text y="4">0</text></g>
+            <text class="lbl" y="46">${esc(info.label)}</text></g></g>`;
+        });
+        html += '<g id="fx"></g>';
+        $('graph').innerHTML = html;
+    }
+    function updateGraph(devs) {
+        devs.forEach(d => {
+            const g = $('gn-' + d.deviceId);
+            if (!g) return;
+            g.classList.toggle('bridge', !!d.hasInternet);
+            const b = g.querySelector('.badge');
+            b.classList.toggle('zero', !d.packetCount);
+            b.querySelector('text').textContent = d.packetCount;
+            const bk = $('bk-' + d.deviceId);
+            if (bk) bk.classList.toggle('on', !!d.hasInternet);
+        });
+    }
+    function fly(a, b, cls, delay) {
+        const layer = $('fx');
+        if (!layer || !a || !b) return;
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('r', 6);
+        c.setAttribute('class', 'fx ' + cls);
+        c.setAttribute('cx', a.x); c.setAttribute('cy', a.y);
+        c.style.opacity = 0;
+        layer.appendChild(c);
+        const t0 = performance.now() + delay, dur = 850;
+        function step(t) {
+            if (t < t0) { requestAnimationFrame(step); return; }
+            c.style.opacity = 1;
+            const k = Math.min(1, (t - t0) / dur);
+            const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+            c.setAttribute('cx', a.x + (b.x - a.x) * e);
+            c.setAttribute('cy', a.y + (b.y - a.y) * e);
+            if (k < 1) requestAnimationFrame(step); else c.remove();
+        }
+        requestAnimationFrame(step);
+    }
+    function pulseNode(id) {
+        const g = $('gn-' + id);
+        if (!g) return;
+        g.classList.remove('pulse');
+        void g.getBoundingClientRect();
+        g.classList.add('pulse');
+        setTimeout(() => g.classList.remove('pulse'), 1100);
+    }
+    function renderDevices(devs) {
+        $('devices').innerHTML = devs.map(d => {
+            const info = nodeInfo(d.deviceId);
+            return `<div class="dev ${d.hasInternet ? 'bridge' : ''}">
+            <div class="ico">${ic(d.hasInternet ? 'wifi' : 'wifioff')}</div>
+            <div class="meta"><b>${esc(info.label)}</b><small>holding ${d.packetCount} packet${d.packetCount === 1 ? '' : 's'}</small>
+                <div class="pids">${(d.packetIds || []).map(id => `<span class="pid lnk" data-pid="${esc(id)}" title="Inspect packet">${esc(id)}</span>`).join('')}</div></div>
+            <span class="pill ${d.hasInternet ? 'on' : 'off'}">${d.hasInternet ? '4G' : 'OFFLINE'}</span></div>`;
+        }).join('');
+    }
+    let startSig = '';
+    function fillStartNodes(devs) {
+        const ids = devs.map(d => d.deviceId).sort();
+        const sig = ids.join('|');
+        if (sig === startSig) return;
+        startSig = sig;
+        const el = $('startNode');
+        const keep = el.value;
+        el.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(nodeInfo(id).label)}${id.indexOf('bridge') >= 0 ? ' (has 4G)' : ''}</option>`).join('');
+        if (ids.indexOf(keep) >= 0) el.value = keep;
+        else if (ids.indexOf('phone-alice') >= 0) el.value = 'phone-alice';
+    }
+    function renderMesh(m) {
+        lastMesh = m;
+        buildGraph(m.devices);
+        updateGraph(m.devices);
+        renderDevices(m.devices);
+        fillStartNodes(m.devices);
+        $('cacheInfo').textContent = 'Idempotency cache: ' + m.idempotencyCacheSize;
+        // promote tracker when the bridge now holds the tracked packet
+        if (tracker.packet && tracker.done >= 2 && tracker.done < 3) {
+            const held = m.devices.some(d => d.hasInternet && (d.packetIds || []).some(id => String(id).slice(0, 8) === tracker.packet));
+            if (held) { tracker.done = 3; tracker.note = 'Packet reached a bridge node. Upload it to the backend.'; renderTracker(); }
+        }
+    }
+
+    /* ---------- tracker ---------- */
+    const STEPS = [
+        {t: 'Composed', s: 'Encrypted on sender phone'},
+        {t: 'Gossiping', s: 'Hopping between phones'},
+        {t: 'Reached bridge', s: 'A phone with 4G has it'},
+        {t: 'Settled', s: 'Money moved at backend'}
+    ];
+    function renderTracker() {
+        $('track').innerHTML = STEPS.map((s, i) => {
+            let cls = '', inner = String(i + 1), title = s.t, sub = s.s;
+            if (tracker.status !== 'idle') {
+                if (i < tracker.done) { cls = 'done'; inner = ic('check', 'sm'); }
+                else if (i === tracker.done && tracker.status === 'active') { cls = 'active'; }
+            }
+            if (i === 3 && tracker.status === 'dup') { cls = 'dup'; inner = ic('alert', 'sm'); title = 'Duplicate blocked'; sub = 'Already settled earlier'; }
+            if (i === 3 && tracker.status === 'fail') { cls = 'fail'; inner = ic('x', 'sm'); title = 'Rejected'; sub = 'Backend refused it'; }
+            return `<div class="stp ${cls}"><div class="dot">${inner}</div><b>${esc(title)}</b><small>${esc(sub)}</small></div>`;
+        }).join('');
+        const n = $('tnote');
+        if (!tracker.packet) {
+            n.innerHTML = ic('info', 'sm') + '<span>Inject a payment to track it here from sender phone to settlement.</span>';
+        } else {
+            n.innerHTML = ic('info', 'sm') + `<span>Packet <code class="lnk" data-pid="${esc(tracker.packet)}" title="Inspect packet">${esc(tracker.packet)}</code></span><span>${esc(tracker.note)}</span><button type="button" class="lnkbtn" data-pid="${esc(tracker.packet)}">Inspect</button>`;
+        }
+    }
+
+    /* ---------- ledger ---------- */
+    function renderTx(txs) {
+        txs = txs.slice().sort((a, b) => b.id - a.id);
+        $('txEmpty').style.display = txs.length ? 'none' : 'block';
+        $('txBody').innerHTML = txs.map(t => {
+            const isNew = !firstTx && !knownTx.has(t.id);
+            const a = person(t.senderVpa), b = person(t.receiverVpa);
+            return `<tr class="${isNew ? 'new-row' : ''}">
+            <td class="tm">#${t.id}</td>
+            <td><span class="pp">${avatar(t.senderVpa, 28)}<b>${esc(a.name)}</b></span></td>
+            <td><span class="pp">${avatar(t.receiverVpa, 28)}<b>${esc(b.name)}</b></span></td>
+            <td class="amt">&#8377;${fmt(t.amount)}</td>
+            <td><span class="st st-${esc(t.status)}">${esc(String(t.status).replace('_', ' '))}</span></td>
+            <td>${esc(nodeInfo(t.bridgeNodeId).label)}</td>
+            <td>${t.hopCount}</td>
+            <td class="tm">${t.settledAt ? new Date(t.settledAt).toLocaleTimeString() : '-'}</td></tr>`;
+        }).join('');
+        txs.forEach(t => knownTx.add(t.id));
+        firstTx = false;
+    }
+
+    /* ---------- refresh + stats ---------- */
+    const CALM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let netWarned = false, drawWarned = false;
+    let lastTx = [];
+    const PK = {};
+    const stats = {dups: 0};
+    let scenarioBusy = false;
+
+    function animateNumber(id, to, f) {
+        const el = $(id);
+        if (!el || el._v === to) return;
+        const from = el._v === undefined ? 0 : el._v;
+        el._v = to;
+        if (CALM || from === to) { el.textContent = f(to); return; }
+        const t0 = performance.now(), dur = 750;
+        cancelAnimationFrame(el._raf);
+        (function tick(t) {
+            const k = Math.min(1, (t - t0) / dur);
+            const e = 1 - Math.pow(1 - k, 3);
+            el.textContent = f(from + (to - from) * e);
+            if (k < 1) el._raf = requestAnimationFrame(tick);
+        })(t0);
+    }
+    function renderStats(txs) {
+        const ok = txs.filter(t => t.status === 'SETTLED');
+        const vol = ok.reduce((s, t) => s + parseFloat(t.amount), 0);
+        const hops = ok.length ? ok.reduce((s, t) => s + (t.hopCount || 0), 0) / ok.length : 0;
+        animateNumber('st-count', ok.length, v => String(Math.round(v)));
+        animateNumber('st-vol', vol, v => '₹' + fmt(v));
+        animateNumber('st-dup', stats.dups, v => String(Math.round(v)));
+        animateNumber('st-hops', hops, v => ok.length ? v.toFixed(1) : '-');
+    }
+
+    async function refresh() {
+        let m, accs, txs;
+        try {
+            [m, accs, txs] = await Promise.all([api('/api/mesh/state'), api('/api/accounts'), api('/api/transactions')]);
+        } catch (e) {
+            setLive(false);
+            if (!netWarned) {
+                netWarned = true;
+                toast('err', 'Cannot reach the backend', 'Open this page at http://localhost:8080 while the Spring app is running.');
+            }
+            return;
+        }
+        netWarned = false;
+        setLive(true);
+        try {
+            accounts = accs;
+            lastTx = txs;
+            if (!sel.from && accs.length > 1) { sel.from = accs[0].vpa; sel.to = accs[1].vpa; }
+            renderAccounts(accs);
+            renderPeople();
+            renderWallet();
+            renderMesh(m);
+            renderTx(txs);
+            renderStats(txs);
+            if (inspPid) updateInspector();
+        } catch (e) {
+            console.error('Dashboard render error', e);
+            if (!drawWarned) { drawWarned = true; toast('err', 'Display error', String(e && e.message ? e.message : e)); }
+        }
+    }
+
+    /* ---------- actions ---------- */
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    async function sendPacket(opts) {
+        opts = opts || {};
+        const amount = opts.amount !== undefined ? opts.amount : parseFloat($('amount').value);
+        if (!sel.from || !sel.to) { toast('warn', 'Pick people', 'Choose who sends and who receives.'); return false; }
+        if (!(amount > 0)) { toast('warn', 'Invalid amount', 'Enter an amount greater than zero.'); return false; }
+        busy('btnSend', true);
+        let sent = false;
+        try {
+            const r = await api('/api/demo/send', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    senderVpa: sel.from, receiverVpa: sel.to, amount: amount,
+                    pin: $('pin').value, ttl: 5, startDevice: $('startNode').value || 'phone-alice'
+                })
+            });
+            const pid = String(r.packetId).substring(0, 8);
+            PK[pid] = {id: r.packetId, preview: r.ciphertextPreview, ttl: r.ttl, at: r.injectedAt, from: sel.from, to: sel.to, amount: amount};
+            tracker.packet = pid; tracker.done = 1; tracker.status = 'active';
+            tracker.meta = {from: sel.from, to: sel.to, amount: amount};
+            tracker.note = 'Encrypted and placed on ' + nodeInfo(r.injectedAt).label + '. Run a gossip round.';
+            renderTracker();
+            log('SEND', 'send', `${person(sel.from).name} to ${person(sel.to).name}, Rs ${amount}. Packet ${pid} injected at ${nodeInfo(r.injectedAt).label} (TTL ${r.ttl})`);
+            log('CRYPTO', 'sys', 'Ciphertext (truncated): ' + r.ciphertextPreview);
+            if (!opts.quiet) toast('ok', 'Payment injected', `${person(sel.from).name} to ${person(sel.to).name}, ₹${fmt(amount)}. Now run gossip.`);
+            pulseNode(r.injectedAt);
+            sent = true;
+        } catch (e) {
+            toast('err', 'Could not send', 'The backend refused this request (' + e.message + ').');
+            log('ERROR', 'err', 'Send failed: ' + e.message);
+        }
+        busy('btnSend', false);
+        await refresh();
+        return sent;
+    }
+
+    async function gossip(opts) {
+        opts = opts || {};
+        busy('btnGossip', true);
+        try {
+            const before = {};
+            if (lastMesh) lastMesh.devices.forEach(d => { before[d.deviceId] = d.packetCount; });
+            const r = await api('/api/mesh/gossip', {method: 'POST'});
+            const after = r.deviceCounts || {};
+            const holders = Object.keys(before).filter(id => before[id] > 0);
+            const gainers = Object.keys(after).filter(id => after[id] > (before[id] || 0));
+            gainers.forEach((id, i) => {
+                const src = holders.find(h => h !== id) || holders[0];
+                if (src) fly(pos[src], pos[id], 'pk', i * 160);
+                setTimeout(() => pulseNode(id), 850 + i * 160);
+            });
+            log('GOSSIP', 'gossip', `${r.transfers} transfer(s). Packets per device: ${JSON.stringify(after)}`);
+            if (tracker.packet && tracker.done >= 1 && tracker.done < 3) {
+                tracker.done = Math.max(tracker.done, 2);
+                tracker.note = 'Spreading across the mesh.';
+                renderTracker();
+            }
+            if (!opts.quiet) toast(r.transfers > 0 ? 'ok' : 'info', 'Gossip round complete', r.transfers > 0 ? r.transfers + ' packet transfer(s) between phones.' : 'No new transfers. Everyone already has the packets.');
+        } catch (e) {
+            toast('err', 'Gossip failed', e.message);
+            log('ERROR', 'err', 'Gossip failed: ' + e.message);
+        }
+        busy('btnGossip', false);
+        await refresh();
+    }
+
+    async function flushBridges(opts) {
+        opts = opts || {};
+        const out = {results: [], attempted: 0};
+        busy('btnFlush', true);
+        try {
+            const r = await api('/api/mesh/flush', {method: 'POST'});
+            const bridges = lastMesh ? lastMesh.devices.filter(d => d.hasInternet).map(d => d.deviceId) : [];
+            bridges.forEach((id, i) => fly(pos[id], pos.__srv, 'up', i * 120));
+            setTimeout(() => { const s = $('srv'); if (s) { s.classList.remove('flash'); void s.getBoundingClientRect(); s.classList.add('flash'); } }, 900);
+            log('BRIDGE', 'bridge', `${r.uploadsAttempted} bridge upload(s)`);
+            (r.results || []).forEach(res => {
+                const o = res.outcome;
+                if (o === 'DUPLICATE_DROPPED') stats.dups++;
+                log(o === 'SETTLED' ? 'SETTLED' : (o === 'DUPLICATE_DROPPED' ? 'DUPLICATE' : 'REJECTED'),
+                    o === 'SETTLED' ? 'gossip' : (o === 'DUPLICATE_DROPPED' ? 'warn' : 'err'),
+                    `${nodeInfo(res.bridgeNode).label} packet ${res.packetId}` + (res.reason ? ' (' + res.reason + ')' : ''));
+                if (tracker.packet && (String(res.packetId).slice(0, 8) === tracker.packet)) {
+                    if (o === 'SETTLED') { tracker.done = 4; tracker.status = 'ok'; tracker.note = 'Settled. Balances updated.'; }
+                    else if (o === 'DUPLICATE_DROPPED' && tracker.status !== 'ok') { tracker.status = 'dup'; tracker.done = 3; tracker.note = 'Same packet arrived again, so the backend dropped it. No double charge.'; }
+                    else if (o !== 'SETTLED' && o !== 'DUPLICATE_DROPPED') { tracker.status = 'fail'; tracker.done = 3; tracker.note = 'Rejected' + (res.reason ? ': ' + res.reason : '.'); }
+                }
+            });
+            renderTracker();
+            out.results = r.results || [];
+            out.attempted = r.uploadsAttempted;
+        } catch (e) {
+            toast('err', 'Upload failed', e.message);
+            log('ERROR', 'err', 'Bridge upload failed: ' + e.message);
+        }
+        busy('btnFlush', false);
+        await refresh();
+        if (!opts.quiet) await announce(out.results, out.attempted);
+        return out;
+    }
+
+    async function announce(results, attempted) {
+        if (!attempted) { toast('info', 'Nothing to upload', 'No bridge node is holding a packet yet. Run a gossip round first.'); return; }
+        let settled = 0, dups = 0, bad = 0;
+        results.forEach(res => {
+            if (res.outcome === 'SETTLED') settled++;
+            else if (res.outcome === 'DUPLICATE_DROPPED') dups++;
+            else bad++;
+        });
+        if (settled) toast('ok', 'Payment settled', settled + ' settled' + (dups ? ', ' + dups + ' duplicate(s) dropped.' : '.'));
+        else if (dups && !bad) toast('warn', 'Duplicate dropped', 'The backend already had this payment. No double charge.');
+        else toast('err', 'Upload rejected', bad + ' packet(s) were rejected. See the activity log.');
+        const mine = tracker.packet ? results.filter(r => String(r.packetId).slice(0, 8) === tracker.packet) : [];
+        const win = mine.find(r => r.outcome === 'SETTLED');
+        const lose = mine.find(r => r.outcome !== 'SETTLED' && r.outcome !== 'DUPLICATE_DROPPED');
+        if (win) { await refresh(); setTimeout(() => showReceipt('ok', win), CALM ? 0 : 2900); }
+        else if (lose) showReceipt('fail', lose);
+    }
+
+    async function resetMesh() {
+        busy('btnReset', true);
+        try {
+            await api('/api/mesh/reset', {method: 'POST'});
+            tracker.packet = null; tracker.done = 0; tracker.status = 'idle'; tracker.note = ''; tracker.meta = null;
+            renderTracker();
+            closeInspector();
+            log('SYSTEM', 'sys', 'Mesh and idempotency cache cleared.');
+            toast('info', 'Mesh reset', 'Packets and idempotency cache cleared.');
+        } catch (e) {
+            toast('err', 'Reset failed', e.message);
+        }
+        busy('btnReset', false);
+        refresh();
+    }
+
+    /* ---------- scenarios ---------- */
+    function lockUi(on) {
+        scenarioBusy = on;
+        ['btnSend', 'btnGossip', 'btnFlush', 'btnReset'].forEach(id => { $(id).disabled = on; });
+        document.querySelectorAll('.sc .btn').forEach(b => { b.disabled = on; });
+    }
+    async function reachBridge() {
+        for (let i = 0; i < 4; i++) {
+            await gossip({quiet: true});
+            if (tracker.done >= 3) return true;
+            await sleep(500);
+        }
+        return tracker.done >= 3;
+    }
+    async function runScenario(kind) {
+        if (scenarioBusy) return;
+        lockUi(true);
+        try {
+            if (kind === 'full') {
+                toast('info', 'Full demo', 'Inject, gossip and upload run automatically.');
+                if (!(await sendPacket({quiet: true}))) return;
+                await sleep(900);
+                await reachBridge();
+                await sleep(700);
+                await flushBridges();
+            } else if (kind === 'storm') {
+                toast('info', 'Duplicate storm', 'One payment, three uploads at the same time. Only one may settle.');
+                if (!(await sendPacket({quiet: true}))) return;
+                await sleep(900);
+                await reachBridge();
+                await sleep(700);
+                const runs = await Promise.all([flushBridges({quiet: true}), flushBridges({quiet: true}), flushBridges({quiet: true})]);
+                const all = [].concat.apply([], runs.map(r => r.results));
+                await announce(all, all.length);
+            } else if (kind === 'low') {
+                const a = accounts.find(x => x.vpa === sel.from);
+                const amt = Math.ceil(a ? parseFloat(a.balance) : 1000) + 1000;
+                toast('info', 'Low balance', `Trying to send ₹${fmt(amt)}, more than the sender has.`);
+                if (!(await sendPacket({quiet: true, amount: amt}))) return;
+                await sleep(900);
+                await reachBridge();
+                await sleep(700);
+                await flushBridges();
+            }
+        } catch (e) {
+            toast('err', 'Scenario stopped', String(e && e.message ? e.message : e));
+        } finally {
+            lockUi(false);
+        }
+    }
+
+    /* ---------- success / failure receipt ---------- */
+    function kv(k, v) { return `<div class="kv"><span>${esc(k)}</span><b>${v}</b></div>`; }
+    function showReceipt(kind, res) {
+        const m = tracker.meta || {};
+        const to = person(m.to || ''), from = person(m.from || '');
+        const ok = kind === 'ok';
+        const tx = res && res.transactionId > 0 ? lastTx.find(t => t.id === res.transactionId) : null;
+        let rows = kv('From', esc(from.name) + ' &middot; ' + esc(from.vpa));
+        if (ok) {
+            rows += kv('Transaction ID', res && res.transactionId > 0 ? '#' + esc(res.transactionId) : '-');
+            rows += kv('Packet', esc(tracker.packet));
+            rows += kv('Settled via', esc(nodeInfo(res.bridgeNode).label));
+            rows += kv('Hops', tx ? esc(tx.hopCount) : '-');
+            rows += kv('Time', esc(new Date().toLocaleString()));
+        } else {
+            rows += kv('Packet', esc(tracker.packet));
+            rows += kv('Uploaded by', esc(nodeInfo(res.bridgeNode).label));
+            rows += kv('Reason', esc(res.reason || res.outcome));
+        }
+        const mark = ok ? '<path d="M14 27l8 8 16-17"/>' : '<path d="M17 17l18 18M35 17L17 35"/>';
+        $('rcpt').innerHTML = `<div class="rc ${ok ? 'ok' : 'fail'}">
+        <svg class="tick" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/>${mark}</svg>
+        <h3>${ok ? 'Payment successful' : 'Payment rejected'}</h3>
+        <div class="big">&#8377;${fmt(m.amount || 0)}</div>
+        <p>${ok ? 'Paid to' : 'Could not pay'} <b>${esc(to.name)}</b> &middot; ${esc(to.vpa)}</p>
+        <div class="kvs">${rows}</div>
+        <div class="rc-actions">
+            <button class="btn sec" onclick="openInspector(tracker.packet); closeReceipt()">Inspect packet</button>
+            <button class="btn pri" onclick="closeReceipt()">Done</button>
+        </div></div>`;
+        $('rcpt').classList.add('show');
+        if (ok && !CALM) {
+            const box = $('rcpt').querySelector('.rc');
+            const cols = ['#27d39a', '#7cf5c4', '#ffffff', '#3cc7d9', '#f4cd57'];
+            for (let i = 0; i < 22; i++) {
+                const c = document.createElement('i');
+                c.className = 'cf';
+                const ang = Math.random() * Math.PI * 2, dist = 90 + Math.random() * 110;
+                c.style.background = cols[i % cols.length];
+                c.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(0) + 'px');
+                c.style.setProperty('--dy', (Math.sin(ang) * dist - 20).toFixed(0) + 'px');
+                c.style.setProperty('--r', (Math.random() * 540 - 270).toFixed(0) + 'deg');
+                box.appendChild(c);
+            }
+        }
+    }
+    function closeReceipt() { $('rcpt').classList.remove('show'); }
+
+    /* ---------- packet inspector ---------- */
+    let inspPid = null;
+    function liveHtml(pid) {
+        const pk = PK[pid];
+        const hs = lastMesh ? lastMesh.devices.filter(d => (d.packetIds || []).some(id => String(id).slice(0, 8) === pid)) : [];
+        const settled = tracker.packet === pid && tracker.status === 'ok';
+        const steps = [
+            ['Composed on a sender phone', !!pk],
+            ['Spread to other phones', hs.length > 1],
+            ['Reached a phone with 4G', hs.some(d => d.hasInternet)],
+            ['Settled at the backend', settled]
+        ];
+        const journey = steps.map(s => `<div class="jr ${s[1] ? 'done' : ''}"><i>${s[1] ? ic('check', 'sm') : ''}</i>${esc(s[0])}</div>`).join('');
+        const holders = hs.length
+            ? hs.map(d => `<span class="hold ${d.hasInternet ? 'br' : ''}">${esc(nodeInfo(d.deviceId).label)}${d.hasInternet ? ' &middot; 4G' : ''}</span>`).join('')
+            : '<span class="muted">No phone is holding this packet right now.</span>';
+        return `<div class="dh">Journey</div>${journey}<div class="dh">Held by right now</div><div class="holds">${holders}</div>`;
+    }
+    function inspectorHtml(pid) {
+        const pk = PK[pid];
+        let sealed = '';
+        const fields = [
+            ['Sender', pk ? esc(person(pk.from).name) + ' &middot; ' + esc(person(pk.from).vpa) : 'unknown to this page'],
+            ['Receiver', pk ? esc(person(pk.to).name) + ' &middot; ' + esc(person(pk.to).vpa) : 'unknown to this page'],
+            ['Amount', pk ? '&#8377;' + fmt(pk.amount) : 'unknown to this page'],
+            ['PIN', 'SHA-256 hash, never the PIN itself'],
+            ['Nonce', 'random UUID, makes every payment unique'],
+            ['Signed at', 'timestamp, used for the freshness check']
+        ];
+        fields.forEach(f => { sealed += kv(f[0], f[1]); });
+        return `<div class="dtop"><div><small>Packet inspector</small><h3 class="mono">${esc(pid)}</h3></div>
+            <button class="dx" onclick="closeInspector()" aria-label="Close">${ic('x')}</button></div>
+        <div id="insp-live">${liveHtml(pid)}</div>
+        <div class="dh">Encryption</div>
+        <div class="kvs">${kv('Key exchange', 'RSA-2048 / OAEP-SHA256')}${kv('Payload', 'AES-256-GCM session key, wrapped by RSA-OAEP')}</div>
+        <p class="muted sm">Only the backend holds the private key. Phones that relay this packet cannot read the people or the amount.</p>
+        <div class="dh">Sealed inside the ciphertext</div>
+        <div class="kvs">${sealed}</div>
+        <div class="dh">Ciphertext (first 64 characters)</div>
+        <div class="cbox">${pk ? esc(pk.preview) : 'Not available. This packet was sent before this page was opened.'}</div>
+        <div class="dh">Rules</div>
+        <p class="muted sm">${pk ? 'Starts with TTL ' + esc(pk.ttl) + ' at ' + esc(nodeInfo(pk.at).label) + '. ' : ''}Hops recorded at the backend equal 5 minus the TTL left on arrival. The backend remembers settled packets, so uploading the same packet again is dropped as a duplicate.</p>`;
+    }
+    function openInspector(pid) {
+        if (!pid) return;
+        inspPid = pid;
+        $('drawer').innerHTML = inspectorHtml(pid);
+        $('drawer').classList.add('open');
+        $('dim').classList.add('show');
+    }
+    function updateInspector() {
+        const el = $('insp-live');
+        if (el && inspPid) el.innerHTML = liveHtml(inspPid);
+    }
+    function closeInspector() {
+        inspPid = null;
+        $('drawer').classList.remove('open');
+        $('dim').classList.remove('show');
+    }
+    document.addEventListener('click', e => {
+        const p = e.target.closest('[data-pid]');
+        if (p && p.dataset.pid) openInspector(p.dataset.pid);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeReceipt(); closeInspector(); } });
+    $('dim').addEventListener('click', closeInspector);
+    $('rcpt').addEventListener('click', e => { if (e.target === $('rcpt')) closeReceipt(); });
+
+    /* ---------- cursor + motion effects ---------- */
+    (function initFx() {
+        document.querySelectorAll('.card').forEach((c, i) => { c.style.animationDelay = (i * 70) + 'ms'; });
+
+        const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!fine || calm) return;
+
+        const spot = $('spot'), tip = $('tip');
+        const blobs = document.querySelectorAll('.blob');
+        let mx = innerWidth / 2, my = innerHeight / 2, sx = mx, sy = my, started = false, hotNode = null;
+
+        function setHot(id) {
+            if (id === hotNode) return;
+            hotNode = id;
+            document.querySelectorAll('.gedge').forEach(l => {
+                l.classList.toggle('hot', !!id && (l.dataset.a === id || l.dataset.b === id));
+            });
+        }
+        function tipHtml(el) {
+            if (el.classList.contains('srv')) return '<b>Backend</b><span>Receives packets from bridge nodes and settles the payment.</span>';
+            const id = el.id.replace('gn-', '');
+            const d = lastMesh && lastMesh.devices.find(x => x.deviceId === id);
+            const info = nodeInfo(id);
+            const status = d && d.hasInternet ? 'Has 4G, can upload' : 'Offline, relays only';
+            return `<b>${esc(info.label)}</b><span>${status} &middot; holding ${d ? d.packetCount : 0} packet(s)</span>`;
+        }
+
+        document.addEventListener('mousemove', e => {
+            mx = e.clientX; my = e.clientY;
+            if (!started) { started = true; sx = mx; sy = my; spot.classList.add('on'); }
+            const t = e.target;
+            const card = t.closest('.card');
+            if (card) {
+                const r = card.getBoundingClientRect();
+                card.style.setProperty('--cx', (e.clientX - r.left) + 'px');
+                card.style.setProperty('--cy', (e.clientY - r.top) + 'px');
+            }
+            const node = t.closest('.gnode, .srv');
+            if (node) {
+                tip.innerHTML = tipHtml(node);
+                tip.classList.add('show');
+                const x = e.clientX + 18 + 240 > innerWidth ? e.clientX - 250 : e.clientX + 18;
+                tip.style.transform = `translate3d(${x}px, ${e.clientY + 16}px, 0)`;
+                setHot(node.classList.contains('gnode') ? node.id.replace('gn-', '') : null);
+            } else {
+                tip.classList.remove('show');
+                setHot(null);
+            }
+        });
+        document.documentElement.addEventListener('mouseleave', () => { started = false; spot.classList.remove('on'); tip.classList.remove('show'); });
+
+        function loop() {
+            sx += (mx - sx) * 0.12; sy += (my - sy) * 0.12;
+            spot.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
+            const nx = (sx / innerWidth - 0.5), ny = (sy / innerHeight - 0.5);
+            if (blobs[0]) blobs[0].style.transform = `translate(${(nx * -30).toFixed(1)}px, ${(ny * -24).toFixed(1)}px)`;
+            if (blobs[1]) blobs[1].style.transform = `translate(${(nx * 36).toFixed(1)}px, ${(ny * 28).toFixed(1)}px)`;
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    })();
+
+    $('amount').addEventListener('keydown', e => { if (e.key === 'Enter') sendPacket(); });
+    renderTracker();
+    log('SYSTEM', 'sys', 'OffGrid Pay dashboard ready.');
+    refresh();
+    setInterval(refresh, 3000);
+</script>
+</body>
+</html>
