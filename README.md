@@ -7,6 +7,22 @@ You're in a basement with zero connectivity. You send your friend ₹500. Your p
 This repo is the server side of that system, plus a software simulator of the mesh so you can demo the whole flow on a single laptop without any real Bluetooth hardware.
 
 ![OffGrid Pay dashboard](screenshots/dashboard.png)
+## Screenshots
+
+### Send a payment and track its delivery
+Pick a sender and receiver, inject the packet into the mesh, run gossip rounds, and upload through the bridge node. The delivery status shows each stage from composed to settled. You can also run ready-made scenarios like the duplicate storm and low balance.
+
+![Send payment and delivery status](screenshots/send-and-delivery.png)
+
+### Accounts and devices
+Balances update only when a payment settles at the backend. Each device shows which packets it holds, and only the bridge node has 4G.
+
+![Accounts and devices](screenshots/accounts-and-devices.png)
+
+### Transaction ledger and activity log
+Every settled or rejected payment is recorded in the ledger. The activity log shows the full pipeline, including duplicates being dropped.
+
+![Transaction ledger and activity log](screenshots/ledger-and-activity-log.png)
 
 ## Table of Contents
 
@@ -77,66 +93,59 @@ The interesting one is `IdempotencyConcurrencyTest`. It fires three threads deli
 
 ## The demo flow (step by step)
 
-The dashboard walks through the full pipeline. The intended sequence:
+Everything happens on one dashboard. The intended sequence:
 
 ### Step 1: Compose a payment
 
-Choose sender, receiver, amount, PIN, then inject the payment into the mesh.
+Under **Send Payment**, pick the sender (**From**) and the receiver (**To**), enter an amount and the UPI PIN, and choose which phone the payment starts from (**Send from phone**, for example Node A). Then click **1 Inject into Mesh**.
 
 What actually happens on the backend:
 
 1. The server pretends to be the sender's phone.
 2. It builds a `PaymentInstruction` with a unique nonce and current timestamp.
-3. It encrypts that with the server's RSA public key (using hybrid encryption, see below).
+3. It encrypts that with the server's RSA public key (hybrid encryption, see below).
 4. It wraps the ciphertext in a `MeshPacket` with a TTL of 5.
-5. It hands the packet to an offline virtual device.
+5. It hands the packet to the chosen offline device.
 
-You'll see that device now holds 1 packet.
+The **Delivery Status** bar moves to "Composed", and the **Devices** panel shows that phone holding 1 packet.
 
 ### Step 2: Run gossip rounds
 
-Run a gossip round, then run it again.
+Click **2 Run Gossip Round**, then click it again.
 
-Each round, every device that holds a packet broadcasts it to every other device within "Bluetooth range" (which, in our simulator, means everyone). TTL decrements per hop.
+Each round, every device that holds a packet broadcasts it to every other device in "Bluetooth range" (in the simulator, that means everyone). TTL drops by one per hop. The **Mesh Network** graph shows the packet counts growing on each node.
 
-After 1 round: every device holds the packet. After 2 rounds: still every device, TTL is just lower.
+### Step 3: The bridge uploads to the backend
 
-In the real system this would happen organically as people walk past each other in the basement.
+Click **3 Bridges Upload to Backend**.
 
-### Step 3: Bridge node walks outside
-
-Trigger the bridge upload.
-
-The bridge node is the only device with `hasInternet=true`. The dashboard simulates that phone walking outside and getting 4G. It POSTs every packet it holds to `/api/bridge/ingest`.
-
-The backend pipeline runs:
+The **Bridge Node** is the only device marked 4G. The dashboard simulates that phone walking outside and getting signal, so it POSTs every packet it holds to `/api/bridge/ingest`. The backend pipeline then runs:
 
 1. Hash the ciphertext (SHA-256).
 2. Try to claim the hash in the idempotency cache.
-3. If claimed: decrypt with the server's RSA private key.
+3. If claimed, decrypt with the server's RSA private key.
 4. Verify freshness (`signedAt` within 24 hours).
-5. Run the debit/credit in a single DB transaction.
+5. Run the debit and credit in a single database transaction.
 
-Watch the account balances: money has moved. Watch the transaction ledger: a new row appears.
+Watch **Accounts** (balances change), **Transactions** (a new row appears) and the **Activity Log** (a `SETTLED` entry).
 
-### Step 4: Demonstrate idempotency (the killer feature)
+### Step 4: Try the ready-made scenarios
 
-Reset the mesh. Inject a single packet. Run gossip 2 times. Now all devices hold the same packet.
+The **Scenarios** buttons run inject, gossip and upload for you:
 
-To really see idempotency in action, modify `MeshSimulatorService.java` to seed multiple bridge devices, or just:
+- **Run full demo**: one normal payment, start to finish.
+- **Duplicate storm**: uploads the same packet three times at once. Only one settles, and the **Duplicates Blocked** counter goes up.
+- **Low balance**: tries a payment the sender cannot afford, so it ends up `REJECTED` in the ledger.
 
-1. Inject once.
-2. Gossip twice.
-3. Flush the bridges. Only one bridge is seeded by default, so just one upload happens.
+Use **Reset** to clear the mesh and the idempotency cache between runs.
 
-To exercise the concurrent duplicate case properly, run the test:
+To exercise the concurrent duplicate case in code, run the test:
 
 ```
 mvnw.cmd test -Dtest=IdempotencyConcurrencyTest#singlePacketDeliveredByThreeBridgesSettlesExactlyOnce
 ```
 
 This test creates one packet, fires 3 threads at `BridgeIngestionService.ingest()` simultaneously, and verifies that exactly one settles, two are dropped as duplicates, and the sender is debited exactly once.
-
 ## Architecture
 
 ```
